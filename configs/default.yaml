@@ -1,0 +1,27 @@
+# Recon — Default Configuration
+# ==============================
+# This file is automatically loaded when present.  CLI flags override
+# any values specified here.
+
+worker_count: 10
+timeouts: 300
+rate_limit: 50
+retry_count: 3
+output_directory: "output"
+logging_level: "INFO"
+
+# Path to external tools (leave empty to rely on system PATH)
+tool_paths:
+  subfinder: ""
+  assetfinder: ""
+  httpx: ""
+  aquatone: ""
+  nmap: ""
+  nuclei: ""
+
+# Default set of modules to run
+default_modules:
+  - subdomain_enumeration
+  - live_host_detection
+  - technology_detection
+  - screenshots

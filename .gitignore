@@ -1,5 +1,4 @@
 # Virtual Environment
-# This is the folder that holds your Python libraries (e.g., venv, .venv)
 .venv/
 venv/
 env/
@@ -11,7 +10,6 @@ __pycache__/
 *.pyd
 
 # Editor and IDE directories
-# For PyCharm, VSCode, etc.
 .idea/
 .vscode/
 
@@ -20,10 +18,8 @@ build/
 dist/
 *.egg-info/
 
-# Temporary files from your recon script
-subfinder.txt
-assetfinder.txt
-all_subdomains.txt
+# Output directory (generated scan results)
+output/
 
 # Log files
 *.log
@@ -31,3 +27,8 @@ all_subdomains.txt
 # OS-specific files
 .DS_Store
 Thumbs.db
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml

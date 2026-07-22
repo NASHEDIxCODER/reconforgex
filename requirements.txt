@@ -1,2 +1,6 @@
-requests
-beautifulsoup4
+pyyaml>=6.0
+
+# Development
+pytest>=7.0
+pytest-asyncio>=0.23
+pytest-cov>=4.0
