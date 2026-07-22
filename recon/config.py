@@ -111,6 +111,14 @@ class ReconConfig:
         if isinstance(output_dir, str):
             output_dir = Path(output_dir)
 
+        # Default modules list (used when not provided in data)
+        _default_modules = [
+            STAGE_SUBDOMAIN_ENUM,
+            STAGE_LIVE_HOST_DETECTION,
+            STAGE_TECH_DETECTION,
+            STAGE_SCREENSHOTS,
+        ]
+
         return cls(
             domain=domain or data.get("domain", ""),
             output_directory=output_dir,
@@ -120,7 +128,7 @@ class ReconConfig:
             retry_count=data.get("retry_count", DEFAULT_RETRY_COUNT),
             logging_level=data.get("logging_level", DEFAULT_LOGGING_LEVEL),
             tool_paths=data.get("tool_paths", {}),
-            default_modules=data.get("default_modules", cls.default_modules),
+            default_modules=data.get("default_modules", _default_modules),
             port_scan=data.get("port_scan", False),
             vuln_scan=data.get("vuln_scan", False),
         )

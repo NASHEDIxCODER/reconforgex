@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "recon"
@@ -25,13 +25,13 @@ requires-python = ">=3.11"
 dependencies = [
     "pyyaml>=6.0",
 ]
-optional-dependencies = {
-    "dev": [
-        "pytest>=7.0",
-        "pytest-asyncio>=0.23",
-        "pytest-cov>=4.0",
-    ],
-}
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/NASHEDIxCODER/recon"
@@ -44,6 +44,5 @@ recon = "recon.cli:main"
 include = ["recon*"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
