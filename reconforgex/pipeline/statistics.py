@@ -2,7 +2,22 @@
 Pipeline Statistics Module.
 
 Collects and computes comprehensive execution statistics including
-timing percentiles, throughput, resource usage, and error rates.
+timing percentiles, throughput, resource usage, error rates, and
+connection metrics.
+
+Measures:
+- Total runtime
+- Average response time
+- Median latency
+- P95 latency
+- P99 latency
+- Requests/sec
+- Tasks completed/failed
+- Retries
+- Timeouts
+- Memory usage (current + peak)
+- CPU utilization
+- Open connections (current + peak)
 """
 
 import time
@@ -52,12 +67,28 @@ class PipelineStatistics:
         Total number of errors encountered.
     retries:
         Total number of retries performed.
+    timeouts:
+        Total number of timeouts.
     memory_usage_mb:
+        Current memory usage in MB.
+    peak_memory_mb:
         Peak memory usage in MB.
     cpu_percent:
         Average CPU usage percentage.
     total_requests:
         Total number of HTTP requests made.
+    tasks_completed:
+        Number of tasks completed successfully.
+    tasks_failed:
+        Number of tasks that failed.
+    open_connections:
+        Current number of open connections.
+    peak_connections:
+        Peak number of open connections.
+    bytes_sent:
+        Total bytes sent.
+    bytes_received:
+        Total bytes received.
     """
 
     start_time: float = 0.0
@@ -77,9 +108,17 @@ class PipelineStatistics:
     redirects: int = 0
     errors: int = 0
     retries: int = 0
+    timeouts: int = 0
     memory_usage_mb: float = 0.0
+    peak_memory_mb: float = 0.0
     cpu_percent: float = 0.0
     total_requests: int = 0
+    tasks_completed: int = 0
+    tasks_failed: int = 0
+    open_connections: int = 0
+    peak_connections: int = 0
+    bytes_sent: int = 0
+    bytes_received: int = 0
 
     def compute_percentiles(self, timings: List[float]) -> None:
         """Compute timing percentiles from a list of response times."""
@@ -106,7 +145,9 @@ class PipelineStatistics:
         try:
             import psutil
             process = psutil.Process(os.getpid())
-            self.memory_usage_mb = process.memory_info().rss / (1024 * 1024)
+            current_memory = process.memory_info().rss / (1024 * 1024)
+            self.memory_usage_mb = current_memory
+            self.peak_memory_mb = max(self.peak_memory_mb, current_memory)
             self.cpu_percent = process.cpu_percent(interval=0.1)
         except ImportError:
             # Fallback to /proc/self/status on Linux
@@ -116,12 +157,14 @@ class PipelineStatistics:
                         if line.startswith("VmRSS:"):
                             parts = line.split()
                             if len(parts) >= 2:
-                                self.memory_usage_mb = float(parts[1]) / 1024
-                        elif line.startswith("VmSize:"):
+                                current = float(parts[1]) / 1024
+                                self.memory_usage_mb = current
+                                self.peak_memory_mb = max(self.peak_memory_mb, current)
+                        elif line.startswith("VmPeak:"):
                             parts = line.split()
                             if len(parts) >= 2:
-                                self.memory_usage_mb = max(
-                                    self.memory_usage_mb, float(parts[1]) / 1024
+                                self.peak_memory_mb = max(
+                                    self.peak_memory_mb, float(parts[1]) / 1024
                                 )
             except (FileNotFoundError, IOError):
                 pass
@@ -144,9 +187,17 @@ class PipelineStatistics:
             "redirects": self.redirects,
             "errors": self.errors,
             "retries": self.retries,
+            "timeouts": self.timeouts,
             "memory_usage_mb": round(self.memory_usage_mb, 1),
+            "peak_memory_mb": round(self.peak_memory_mb, 1),
             "cpu_percent": round(self.cpu_percent, 1),
             "total_requests": self.total_requests,
+            "tasks_completed": self.tasks_completed,
+            "tasks_failed": self.tasks_failed,
+            "open_connections": self.open_connections,
+            "peak_connections": self.peak_connections,
+            "bytes_sent": self.bytes_sent,
+            "bytes_received": self.bytes_received,
         }
 
     @classmethod
@@ -168,7 +219,15 @@ class PipelineStatistics:
             redirects=data.get("redirects", 0),
             errors=data.get("errors", 0),
             retries=data.get("retries", 0),
+            timeouts=data.get("timeouts", 0),
             memory_usage_mb=data.get("memory_usage_mb", 0.0),
+            peak_memory_mb=data.get("peak_memory_mb", 0.0),
             cpu_percent=data.get("cpu_percent", 0.0),
             total_requests=data.get("total_requests", 0),
+            tasks_completed=data.get("tasks_completed", 0),
+            tasks_failed=data.get("tasks_failed", 0),
+            open_connections=data.get("open_connections", 0),
+            peak_connections=data.get("peak_connections", 0),
+            bytes_sent=data.get("bytes_sent", 0),
+            bytes_received=data.get("bytes_received", 0),
         )

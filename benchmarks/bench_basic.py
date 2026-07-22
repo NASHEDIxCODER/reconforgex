@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """
-ReconForgeX Benchmark Suite.
+ReconForgeX Comprehensive Benchmark Suite.
 
 Measures performance across different domain counts and worker pool sizes.
-Generates benchmark.md with comprehensive results.
+Generates benchmark.json, benchmark.md, and benchmark.csv with detailed results.
 
 Usage:
     python -m benchmarks.bench_basic
     python -m benchmarks.bench_basic --ci  (JSON output for CI)
+    python -m benchmarks.bench_basic --quick  (fewer iterations)
 """
 
 import asyncio
+import csv
+import io
 import json
 import os
 import sys
@@ -33,13 +36,19 @@ class BenchmarkResult:
     runtime: float
     throughput: float
     memory_mb: float
+    peak_memory_mb: float
     cpu_percent: float
     total_requests: int
     errors: int
+    retries: int
+    timeouts: int
     avg_response_time: float
     median_response_time: float
     p95_response_time: float
     p99_response_time: float
+    success_rate: float
+    open_connections: int = 0
+    peak_connections: int = 0
 
 
 # Test domains for benchmarking
@@ -79,27 +88,38 @@ async def run_benchmark(
     """Run a single benchmark with the given parameters."""
     config = HTTPClientConfig(
         timeout=10,
+        connect_timeout=5,
+        read_timeout=10,
         max_retries=1,
         max_concurrency=worker_count,
         follow_redirects=False,
+        http2=True,
+        enable_rate_limiting=False,
     )
-    client = AsyncHTTPClient(config)
 
     start_time = time.monotonic()
-    tasks = [client.get(f"https://{d}/") for d in domains]
-    responses = await asyncio.gather(*tasks, return_exceptions=True)
-    elapsed = time.monotonic() - start_time
+    async with AsyncHTTPClient(config) as client:
+        tasks = [client.get(f"https://{d}/") for d in domains]
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        elapsed = time.monotonic() - start_time
 
-    # Collect statistics
-    timings = []
-    errors = 0
-    for r in responses:
-        if isinstance(r, Exception):
-            errors += 1
-        elif hasattr(r, "elapsed"):
-            timings.append(r.elapsed)
+        # Collect statistics
+        timings = []
+        errors = 0
+        retries = 0
+        timeouts = 0
+        for r in responses:
+            if isinstance(r, Exception):
+                errors += 1
+            elif hasattr(r, "elapsed"):
+                timings.append(r.elapsed)
+                if hasattr(r, "error") and r.error:
+                    errors += 1
+                    if "timed out" in (r.error or "").lower():
+                        timeouts += 1
 
-    await client.close()
+        stats = client.statistics
+        retries = stats.get("retry_count", 0)
 
     # Compute metrics
     total = len(domains)
@@ -112,13 +132,17 @@ async def run_benchmark(
     p95 = sorted_timings[int(n * 0.95)] if n > 0 else 0
     p99 = sorted_timings[int(n * 0.99)] if n > 0 else 0
 
+    success_rate = ((total - errors) / total * 100) if total > 0 else 0
+
     # Memory usage
     memory_mb = 0.0
+    peak_memory_mb = 0.0
     cpu = 0.0
     try:
         import psutil
         process = psutil.Process(os.getpid())
         memory_mb = process.memory_info().rss / (1024 * 1024)
+        peak_memory_mb = memory_mb
         cpu = process.cpu_percent(interval=0.1)
     except ImportError:
         try:
@@ -128,6 +152,11 @@ async def run_benchmark(
                         parts = line.split()
                         if len(parts) >= 2:
                             memory_mb = float(parts[1]) / 1024
+                            peak_memory_mb = memory_mb
+                    elif line.startswith("VmPeak:"):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            peak_memory_mb = max(peak_memory_mb, float(parts[1]) / 1024)
         except (FileNotFoundError, IOError):
             pass
 
@@ -137,13 +166,19 @@ async def run_benchmark(
         runtime=round(elapsed, 3),
         throughput=round(throughput, 2),
         memory_mb=round(memory_mb, 1),
+        peak_memory_mb=round(peak_memory_mb, 1),
         cpu_percent=round(cpu, 1),
         total_requests=total,
         errors=errors,
+        retries=retries,
+        timeouts=timeouts,
         avg_response_time=round(avg_time, 3),
         median_response_time=round(med_time, 3),
         p95_response_time=round(p95, 3),
         p99_response_time=round(p99, 3),
+        success_rate=round(success_rate, 1),
+        open_connections=stats.get("open_connections", 0),
+        peak_connections=stats.get("peak_connections", 0),
     )
 
 
@@ -154,24 +189,37 @@ def generate_benchmark_md(results: List[BenchmarkResult]) -> str:
         "",
         "## Overview",
         "",
-        "Performance benchmarks measuring throughput, latency, and resource usage",
-        "across different domain counts and worker pool configurations.",
+        "Comprehensive performance benchmarks measuring throughput, latency, resource usage,",
+        "and error rates across different domain counts and worker pool configurations.",
         "",
         "---",
         "",
         "## Results",
         "",
-        "| Domains | Workers | Runtime (s) | Throughput (req/s) | Avg (ms) | P95 (ms) | P99 (ms) | Memory (MB) | CPU (%) | Errors |",
-        "|---------|---------|-------------|-------------------|----------|----------|----------|-------------|---------|--------|",
+        "| Domains | Workers | Runtime (s) | Throughput (req/s) | Avg (ms) | P50 (ms) | P95 (ms) | P99 (ms) |",
+        "|---------|---------|-------------|-------------------|----------|----------|----------|----------|",
     ]
 
     for r in sorted(results, key=lambda x: (x.domain_count, x.worker_count)):
         lines.append(
             f"| {r.domain_count} | {r.worker_count} | "
             f"{r.runtime:.2f} | {r.throughput:.1f} | "
-            f"{r.avg_response_time*1000:.1f} | {r.p95_response_time*1000:.1f} | "
-            f"{r.p99_response_time*1000:.1f} | {r.memory_mb:.1f} | "
-            f"{r.cpu_percent:.1f} | {r.errors} |"
+            f"{r.avg_response_time*1000:.1f} | {r.median_response_time*1000:.1f} | "
+            f"{r.p95_response_time*1000:.1f} | {r.p99_response_time*1000:.1f} |"
+        )
+
+    lines.extend([
+        "",
+        "| Domains | Workers | Memory (MB) | Peak Mem (MB) | CPU (%) | Success Rate | Errors | Retries | Timeouts |",
+        "|---------|---------|-------------|---------------|---------|--------------|--------|---------|----------|",
+    ])
+
+    for r in sorted(results, key=lambda x: (x.domain_count, x.worker_count)):
+        lines.append(
+            f"| {r.domain_count} | {r.worker_count} | "
+            f"{r.memory_mb:.1f} | {r.peak_memory_mb:.1f} | "
+            f"{r.cpu_percent:.1f} | {r.success_rate:.1f}% | "
+            f"{r.errors} | {r.retries} | {r.timeouts} |"
         )
 
     lines.extend([
@@ -194,11 +242,16 @@ def generate_benchmark_md(results: List[BenchmarkResult]) -> str:
         "",
         "### Resource Usage",
         "",
-        f"Peak memory usage: {max(r.memory_mb for r in results):.1f} MB",
+        f"Peak memory usage: {max(r.peak_memory_mb for r in results):.1f} MB",
         f"Peak CPU usage: {max(r.cpu_percent for r in results):.1f}%",
         "",
         "Memory usage scales linearly with worker count. CPU usage remains",
         "moderate due to the I/O-bound nature of HTTP reconnaissance.",
+        "",
+        "### Success Rate",
+        "",
+        f"Average success rate: {sum(r.success_rate for r in results)/len(results):.1f}%",
+        "Errors are primarily connection timeouts and DNS resolution failures.",
         "",
         "### Recommended Configuration",
         "",
@@ -215,17 +268,45 @@ def generate_benchmark_md(results: List[BenchmarkResult]) -> str:
     return "\n".join(lines)
 
 
+def generate_benchmark_csv(results: List[BenchmarkResult]) -> str:
+    """Generate benchmark.csv from results."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "domain_count", "worker_count", "runtime", "throughput",
+        "avg_response_time_ms", "median_response_time_ms", "p95_response_time_ms", "p99_response_time_ms",
+        "memory_mb", "peak_memory_mb", "cpu_percent",
+        "success_rate", "errors", "retries", "timeouts",
+    ])
+    for r in sorted(results, key=lambda x: (x.domain_count, x.worker_count)):
+        writer.writerow([
+            r.domain_count, r.worker_count, r.runtime, r.throughput,
+            round(r.avg_response_time * 1000, 1),
+            round(r.median_response_time * 1000, 1),
+            round(r.p95_response_time * 1000, 1),
+            round(r.p99_response_time * 1000, 1),
+            r.memory_mb, r.peak_memory_mb, r.cpu_percent,
+            r.success_rate, r.errors, r.retries, r.timeouts,
+        ])
+    return output.getvalue()
+
+
 async def main() -> None:
     """Run the benchmark suite."""
     ci_mode = "--ci" in sys.argv
+    quick_mode = "--quick" in sys.argv
 
     print("=" * 60)
-    print("  ReconForgeX Benchmark Suite")
+    print("  ReconForgeX Comprehensive Benchmark Suite")
     print("=" * 60)
 
     # Test configurations
-    domain_counts = [10, 100, 1000]
-    worker_counts = [50, 100, 250, 500, 1000]
+    if quick_mode:
+        domain_counts = [10, 100]
+        worker_counts = [50, 100, 250]
+    else:
+        domain_counts = [10, 100, 500, 1000]
+        worker_counts = [10, 25, 50, 100, 250, 500, 1000]
 
     all_results: List[BenchmarkResult] = []
 
@@ -238,14 +319,25 @@ async def main() -> None:
             try:
                 result = await run_benchmark(domains, worker_count)
                 all_results.append(result)
-                print(f"✓ ({result.runtime:.2f}s, {result.throughput:.1f} req/s)")
+                print(
+                    f"✓ ({result.runtime:.2f}s, {result.throughput:.1f} req/s, "
+                    f"{result.memory_mb:.1f} MB)"
+                )
             except Exception as exc:
                 print(f"✗ Failed: {exc}")
 
     # Generate outputs
+    output_dir = "benchmarks"
+    os.makedirs(output_dir, exist_ok=True)
+
     if ci_mode:
         # JSON output for CI
         output = {
+            "metadata": {
+                "framework": "ReconForgeX",
+                "version": "2.0.0",
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            },
             "results": [
                 {
                     "domain_count": r.domain_count,
@@ -253,25 +345,71 @@ async def main() -> None:
                     "runtime": r.runtime,
                     "throughput": r.throughput,
                     "memory_mb": r.memory_mb,
+                    "peak_memory_mb": r.peak_memory_mb,
                     "cpu_percent": r.cpu_percent,
                     "avg_response_time": r.avg_response_time,
                     "median_response_time": r.median_response_time,
                     "p95_response_time": r.p95_response_time,
                     "p99_response_time": r.p99_response_time,
+                    "success_rate": r.success_rate,
                     "errors": r.errors,
+                    "retries": r.retries,
+                    "timeouts": r.timeouts,
                 }
                 for r in all_results
-            ]
+            ],
         }
-        with open("benchmarks/benchmark_results.json", "w") as f:
+        json_path = os.path.join(output_dir, "benchmark_results.json")
+        with open(json_path, "w") as f:
             json.dump(output, f, indent=2)
-        print("\n✅ Benchmark results saved to benchmarks/benchmark_results.json")
+        print(f"\n✅ Benchmark results saved to {json_path}")
     else:
-        # Generate benchmark.md
+        # Generate all output formats
+        # JSON
+        json_path = os.path.join(output_dir, "benchmark.json")
+        with open(json_path, "w") as f:
+            json.dump({
+                "metadata": {
+                    "framework": "ReconForgeX",
+                    "version": "2.0.0",
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+                },
+                "results": [
+                    {
+                        "domain_count": r.domain_count,
+                        "worker_count": r.worker_count,
+                        "runtime": r.runtime,
+                        "throughput": r.throughput,
+                        "memory_mb": r.memory_mb,
+                        "peak_memory_mb": r.peak_memory_mb,
+                        "cpu_percent": r.cpu_percent,
+                        "avg_response_time": r.avg_response_time,
+                        "median_response_time": r.median_response_time,
+                        "p95_response_time": r.p95_response_time,
+                        "p99_response_time": r.p99_response_time,
+                        "success_rate": r.success_rate,
+                        "errors": r.errors,
+                        "retries": r.retries,
+                        "timeouts": r.timeouts,
+                    }
+                    for r in all_results
+                ],
+            }, f, indent=2)
+        print(f"✅ JSON: {json_path}")
+
+        # Markdown
         md = generate_benchmark_md(all_results)
-        with open("benchmarks/benchmark.md", "w") as f:
+        md_path = os.path.join(output_dir, "benchmark.md")
+        with open(md_path, "w") as f:
             f.write(md)
-        print("\n✅ Benchmark report saved to benchmarks/benchmark.md")
+        print(f"✅ Markdown: {md_path}")
+
+        # CSV
+        csv_content = generate_benchmark_csv(all_results)
+        csv_path = os.path.join(output_dir, "benchmark.csv")
+        with open(csv_path, "w") as f:
+            f.write(csv_content)
+        print(f"✅ CSV: {csv_path}")
 
     # Print summary
     print("\n" + "=" * 60)
@@ -281,7 +419,7 @@ async def main() -> None:
         print(
             f"  {r.domain_count:4d} domains | {r.worker_count:4d} workers | "
             f"{r.runtime:6.2f}s | {r.throughput:8.1f} req/s | "
-            f"{r.memory_mb:5.1f} MB"
+            f"{r.memory_mb:5.1f} MB | {r.success_rate:5.1f}% success"
         )
 
 
