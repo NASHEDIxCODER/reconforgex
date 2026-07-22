@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+      - name: Build package
+        run: python -m build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  docs:
+    name: Generate Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Generate README assets
+        run: |
+          python -c "
+          from reconforgex import VERSION
+          print(f'ReconForgeX v{VERSION}')
+          "
+      - name: Create release artifacts
+        run: |
+          mkdir -p release-artifacts
+          cp README.md release-artifacts/
+          cp pyproject.toml release-artifacts/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: release-artifacts/

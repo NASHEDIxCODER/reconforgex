@@ -1,8 +1,8 @@
-"""Tests for recon.utils.validators."""
+"""Tests for reconforgex.utils.validators."""
 
 import pytest
-from recon.exceptions import ValidationError
-from recon.utils.validators import (
+from reconforgex.exceptions import ValidationError
+from reconforgex.utils.validators import (
     validate_domain,
     validate_url,
     validate_hostname,

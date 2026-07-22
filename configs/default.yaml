@@ -1,27 +1,30 @@
-# Recon — Default Configuration
-# ==============================
-# This file is automatically loaded when present.  CLI flags override
-# any values specified here.
+# ReconForgeX Default Configuration
+# 
+# All modules are pure-Python. No external tools required.
+# 
+# Usage:
+#   reconforgex -d example.com
+#   reconforgex my_config.yaml
 
-worker_count: 10
-timeouts: 300
-rate_limit: 50
+worker_count: 50
+timeout: 30
 retry_count: 3
 output_directory: "output"
 logging_level: "INFO"
-
-# Path to external tools (leave empty to rely on system PATH)
-tool_paths:
-  subfinder: ""
-  assetfinder: ""
-  httpx: ""
-  aquatone: ""
-  nmap: ""
-  nuclei: ""
-
-# Default set of modules to run
-default_modules:
-  - subdomain_enumeration
-  - live_host_detection
-  - technology_detection
-  - screenshots
+html_report: true
+json_report: true
+markdown_report: true
+modules:
+  - http_fingerprinting
+  - header_analyzer
+  - security_header_scanner
+  - tls_inspector
+  - csp_analyzer
+  - robots_parser
+  - sitemap_parser
+  - js_collector
+  - js_endpoint_extractor
+  - js_secret_detector
+  - interesting_files
+  - http_response_analyzer
+  - risk_scoring

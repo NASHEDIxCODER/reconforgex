@@ -1,6 +1,6 @@
-"""Tests for recon.pipeline.scheduler."""
+"""Tests for reconforgex.pipeline.scheduler."""
 
-from recon.pipeline.scheduler import PipelineScheduler, Stage, StageResult, StageStatus
+from reconforgex.pipeline.scheduler import PipelineScheduler, Stage, StageResult, StageStatus
 
 
 class TestPipelineScheduler:

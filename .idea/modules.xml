@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/recon.iml" filepath="$PROJECT_DIR$/.idea/recon.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/reconforgex.iml" filepath="$PROJECT_DIR$/.idea/reconforgex.iml" />
     </modules>
   </component>
 </project>

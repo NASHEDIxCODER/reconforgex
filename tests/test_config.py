@@ -1,72 +1,58 @@
-"""Tests for recon.config."""
+"""Tests for reconforgex.config."""
 
 import tempfile
 from pathlib import Path
 
 import pytest
 
-from recon.config import ReconConfig, load_config, save_default_config
-from recon.constants import (
+from reconforgex.config import ReconForgeXConfig, load_config, save_default_config
+from reconforgex.constants import (
     DEFAULT_LOGGING_LEVEL,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_RATE_LIMIT,
     DEFAULT_RETRY_COUNT,
     DEFAULT_TIMEOUT,
     DEFAULT_WORKER_COUNT,
-    STAGE_LIVE_HOST_DETECTION,
-    STAGE_SCREENSHOTS,
-    STAGE_SUBDOMAIN_ENUM,
-    STAGE_TECH_DETECTION,
 )
 
 
-class TestReconConfig:
-    """Tests for the ReconConfig dataclass."""
+class TestReconForgeXConfig:
+    """Tests for the ReconForgeXConfig dataclass."""
 
     def test_default_config(self) -> None:
-        config = ReconConfig()
+        config = ReconForgeXConfig()
         assert config.worker_count == DEFAULT_WORKER_COUNT
         assert config.timeout == DEFAULT_TIMEOUT
         assert config.rate_limit == DEFAULT_RATE_LIMIT
         assert config.retry_count == DEFAULT_RETRY_COUNT
         assert config.logging_level == DEFAULT_LOGGING_LEVEL
         assert config.output_directory == DEFAULT_OUTPUT_DIR
-        assert config.port_scan is False
-        assert config.vuln_scan is False
 
     def test_from_dict(self) -> None:
         data = {
-            "worker_count": 5,
-            "timeouts": 120,
-            "output_directory": "/tmp/recon",
-            "port_scan": True,
-            "vuln_scan": True,
+            "worker_count": 100,
+            "timeout": 120,
+            "output_directory": "/tmp/reconforgex",
         }
-        config = ReconConfig.from_dict(data, domain="test.com")
-        assert config.worker_count == 5
+        config = ReconForgeXConfig.from_dict(data, domain="test.com")
+        assert config.worker_count == 100
         assert config.timeout == 120
-        assert config.output_directory == Path("/tmp/recon")
-        assert config.port_scan is True
-        assert config.vuln_scan is True
+        assert config.output_directory == Path("/tmp/reconforgex")
         assert config.domain == "test.com"
 
     def test_default_modules(self) -> None:
-        config = ReconConfig()
-        assert STAGE_SUBDOMAIN_ENUM in config.default_modules
-        assert STAGE_LIVE_HOST_DETECTION in config.default_modules
-        assert STAGE_TECH_DETECTION in config.default_modules
-        assert STAGE_SCREENSHOTS in config.default_modules
-
-    def test_resolve_tool_path(self) -> None:
-        config = ReconConfig(tool_paths={"subfinder": "/custom/subfinder"})
-        assert config.resolve_tool_path("subfinder") == "/custom/subfinder"
-        assert config.resolve_tool_path("nmap") == "nmap"  # fallback to name
+        config = ReconForgeXConfig()
+        assert len(config.modules) == 13  # All 13 modules
+        assert "http_fingerprinting" in config.modules
+        assert "header_analyzer" in config.modules
+        assert "tls_inspector" in config.modules
+        assert "risk_scoring" in config.modules
 
     def test_merged_with_cli(self) -> None:
-        config = ReconConfig(domain="original.com")
-        merged = config.merged_with_cli(domain="override.com", port_scan=True, verbose=True)
+        config = ReconForgeXConfig(domain="original.com")
+        merged = config.merged_with_cli(domain="override.com", workers=100, verbose=True)
         assert merged.domain == "override.com"
-        assert merged.port_scan is True
+        assert merged.worker_count == 100
         assert merged.logging_level == "DEBUG"
 
 
@@ -81,7 +67,7 @@ class TestLoadConfig:
 
             data = load_config(path)
             assert data["worker_count"] == DEFAULT_WORKER_COUNT
-            assert data["timeouts"] == DEFAULT_TIMEOUT
+            assert data["timeout"] == DEFAULT_TIMEOUT
             assert data["logging_level"] == DEFAULT_LOGGING_LEVEL
 
     def test_load_missing(self) -> None:
