@@ -119,6 +119,8 @@ class PipelineStatistics:
     peak_connections: int = 0
     bytes_sent: int = 0
     bytes_received: int = 0
+    client_errors: int = 0
+    server_errors: int = 0
 
     def compute_percentiles(self, timings: List[float]) -> None:
         """Compute timing percentiles from a list of response times."""

@@ -111,6 +111,15 @@ class BaseModule(ABC):
         self.stats = ModuleStatistics()
         self._results: List[Any] = []
         self._errors: List[str] = []
+        self._shared_client: Optional[Any] = None
+
+    def set_http_client(self, client: Any) -> None:
+        """Inject a shared HTTP client from the pipeline manager.
+        
+        All modules MUST use this shared client rather than creating
+        their own, to enable connection pooling and unified statistics.
+        """
+        self._shared_client = client
 
     @abstractmethod
     async def run(self, target: str, **kwargs: Any) -> List[Any]:

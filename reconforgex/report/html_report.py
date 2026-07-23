@@ -668,16 +668,41 @@ def _generate_risk_score_html(data: Dict[str, Any]) -> str:
 
 def _generate_security_headers_html(data: Dict[str, Any]) -> str:
     """Generate security headers matrix HTML."""
-    headers = data.get("security_headers", [])
-    if not headers:
+    # security_headers is a list of URL results, each with a "checks" array
+    sec_headers = data.get("security_headers", [])
+
+    # Flatten all checks across all URLs
+    all_checks: List[Dict[str, Any]] = []
+    for entry in sec_headers:
+        if isinstance(entry, dict):
+            checks = entry.get("checks", [])
+            if isinstance(checks, list):
+                for check in checks:
+                    all_checks.append(check)
+        elif hasattr(entry, 'checks'):
+            for check in entry.checks:
+                all_checks.append(check.__dict__ if hasattr(check, '__dict__') else check)
+
+    if not all_checks:
         return "<p><em>No security header data available.</em></p>"
 
     html = '<table class="data-table"><thead><tr><th>Header</th><th>Present</th><th>Value</th><th>Compliant</th><th>Severity</th></tr></thead><tbody>'
-    for h in headers:
-        present = "✅" if h.get("present") else "❌"
-        compliant = "✅" if h.get("compliant") else "❌"
-        severity = h.get("severity", "info")
-        html += f"<tr><td><code>{h.get('header', '')}</code></td><td>{present}</td><td>{h.get('value', '-')}</td><td>{compliant}</td><td><span class='badge badge-{'red' if severity in ('critical','high') else 'yellow' if severity == 'medium' else 'blue'}'>{severity}</span></td></tr>"
+    for h in all_checks:
+        if isinstance(h, dict):
+            present = "✅" if h.get("present") else "❌"
+            compliant = "✅" if h.get("compliant") else "❌"
+            severity = h.get("severity", "info")
+            header_name = h.get("header", "")
+            header_value = h.get("value", "-")
+        else:
+            present = "✅" if getattr(h, 'present', False) else "❌"
+            compliant = "✅" if getattr(h, 'compliant', False) else "❌"
+            severity = getattr(h, 'severity', 'info')
+            header_name = getattr(h, 'header', '')
+            header_value = getattr(h, 'value', '-')
+
+        badge_class = 'red' if severity in ('critical','high') else 'yellow' if severity == 'medium' else 'blue'
+        html += f"<tr><td><code>{header_name}</code></td><td>{present}</td><td>{header_value}</td><td>{compliant}</td><td><span class='badge badge-{badge_class}'>{severity}</span></td></tr>"
     html += "</tbody></table>"
     return html
 

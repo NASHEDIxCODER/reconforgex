@@ -89,6 +89,7 @@ class PipelineManager:
     """Top-level orchestrator for the reconnaissance pipeline.
 
     Uses only pure-Python modules. No external tool dependencies.
+    Creates ONE shared AsyncHTTPClient for the entire pipeline.
 
     Usage::
 
@@ -103,6 +104,8 @@ class PipelineManager:
         self._data_store: Dict[str, Any] = {}
         self._scheduler = PipelineScheduler()
         self._modules: Dict[str, BaseModule] = {}
+        self._shared_client: Optional[Any] = None
+        self._output_dir: Optional[Path] = None
         self._register_default_stages()
 
     # ── Stage Registration ───────────────────────────────────────────────────
@@ -264,8 +267,26 @@ class PipelineManager:
             )
         )
 
+    def _get_shared_client(self) -> Any:
+        """Get or create the single shared HTTP client for the pipeline."""
+        if self._shared_client is None:
+            from reconforgex.utils.http_client import AsyncHTTPClient, HTTPClientConfig
+            http_config = HTTPClientConfig(
+                timeout=self.config.timeout,
+                max_retries=self.config.retry_count,
+                max_concurrency=self.config.worker_count,
+                follow_redirects=True,
+                max_redirects=10,
+                http2=True,
+            )
+            self._shared_client = AsyncHTTPClient(http_config)
+        return self._shared_client
+
     def _get_module(self, module_name: str) -> BaseModule:
-        """Get or create a module instance by name."""
+        """Get or create a module instance by name.
+        
+        Injects the shared HTTP client into every module that supports it.
+        """
         if module_name not in self._modules:
             class_path = MODULE_CLASS_MAP[module_name]
             module_path, class_name = class_path.rsplit(".", 1)
@@ -277,7 +298,11 @@ class PipelineManager:
                 max_retries=self.config.retry_count,
                 concurrency=self.config.worker_count,
             )
-            self._modules[module_name] = cls(config=mod_config)
+            instance = cls(config=mod_config)
+            # Inject the shared HTTP client
+            shared = self._get_shared_client()
+            instance.set_http_client(shared)
+            self._modules[module_name] = instance
         return self._modules[module_name]
 
     # ── Stage Implementations ────────────────────────────────────────────────
@@ -334,7 +359,20 @@ class PipelineManager:
         try:
             module = self._get_module(STAGE_SECURITY_HEADERS)
             results = await module.run(self.config.domain)
-            self._data_store["security_headers"] = [r.__dict__ if hasattr(r, "__dict__") else r for r in results]
+            # Store as dataclass dicts for serialization
+            self._data_store["security_headers_raw"] = results
+            self._data_store["security_headers"] = [
+                {
+                    "url": r.url,
+                    "status_code": r.status_code,
+                    "compliance_score": r.compliance_score,
+                    "total_headers": r.total_headers,
+                    "present_headers": r.present_headers,
+                    "compliant_headers": r.compliant_headers,
+                    "checks": [c.__dict__ for c in r.checks],
+                }
+                for r in results
+            ]
             return StageResult(
                 stage_name=STAGE_SECURITY_HEADERS,
                 status=StageStatus.COMPLETED,
@@ -603,21 +641,79 @@ class PipelineManager:
             self._data_store["worker_count"] = self.config.worker_count
             self._data_store["generated_at"] = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
 
-            # Count total findings
+            # Store stage results for timeline display
+            self._data_store["stages"] = [
+                {
+                    "name": r.stage_name,
+                    "status": r.status.name,
+                    "duration_seconds": r.duration_seconds,
+                    "error": r.error,
+                }
+                for r in self.stats.stage_results
+            ]
+
+            # Count total findings from all modules
             total_findings = 0
-            for key in ["header_analysis", "js_secrets", "csp_analysis", "security_headers"]:
-                items = self._data_store.get(key, [])
-                if isinstance(items, list):
-                    for item in items:
-                        if isinstance(item, dict):
-                            total_findings += len(item.get("findings", item.get("checks", [])))
+            
+            # Header analysis findings
+            for item in self._data_store.get("header_analysis", []):
+                if isinstance(item, dict):
+                    total_findings += len(item.get("findings", []))
+            
+            # JS secrets findings
+            for item in self._data_store.get("js_secrets", []):
+                if isinstance(item, dict):
+                    total_findings += len(item.get("findings", []))
+            
+            # CSP analysis findings
+            for item in self._data_store.get("csp_analysis", []):
+                if isinstance(item, dict):
+                    total_findings += len(item.get("findings", []))
+            
+            # Security header checks
+            for item in self._data_store.get("security_headers", []):
+                if isinstance(item, dict):
+                    total_findings += len(item.get("checks", []))
+            
+            # Also count from raw objects
+            for item in self._data_store.get("security_headers_raw", []):
+                if hasattr(item, 'checks'):
+                    total_findings += len(item.checks)
+
             self._data_store["findings_count"] = total_findings
 
-            # Count live hosts
-            live_hosts = len(self._data_store.get("fingerprints", []))
+            # Count live hosts from fingerprints
+            fingerprints = self._data_store.get("fingerprints", [])
+            live_hosts = len(fingerprints)
             self._data_store["live_host_count"] = live_hosts
             self.pipeline_stats.live_hosts = live_hosts
             self.pipeline_stats.domains_processed = 1
+
+            # Collect timing data for pipeline stats
+            client_timings = []
+            if self._shared_client is not None:
+                client_timings = getattr(self._shared_client, '_timings', [])
+
+            if client_timings:
+                self.pipeline_stats.compute_percentiles(client_timings)
+                self.pipeline_stats.end_time = time.time()
+                self.pipeline_stats.execution_time = self.stats.duration_seconds
+
+            # Transfer HTTP client error/redirect data
+            if self._shared_client is not None:
+                client_stats = self._shared_client.statistics
+                total_req = client_stats.get("request_count", 0)
+                err_count = client_stats.get("error_count", 0)
+                retry_count = client_stats.get("retry_count", 0)
+
+                self.pipeline_stats.total_requests = total_req
+                self.pipeline_stats.errors = err_count
+                self.pipeline_stats.retries = retry_count
+                self.pipeline_stats.redirects = client_stats.get("redirect_count", 0)
+                
+                status_codes = client_stats.get("status_codes", {})
+                self.pipeline_stats.client_errors = sum(v for k, v in status_codes.items() if 400 <= k < 500)
+                self.pipeline_stats.server_errors = sum(v for k, v in status_codes.items() if 500 <= k < 600)
 
             # Build reports
             build_json_report(self._data_store, self.pipeline_stats, json_path)
@@ -661,6 +757,11 @@ class PipelineManager:
         log.info("Workers: %d", self.config.worker_count)
         log.info("=" * 60)
 
+        # Initialize the shared HTTP client
+        shared = self._get_shared_client()
+        log.info("Shared HTTP client initialized (connection pool: %d max)", 
+                 shared.config.max_connections)
+
         waves = self._scheduler.get_execution_order()
 
         for wave_idx, wave in enumerate(waves):
@@ -681,10 +782,34 @@ class PipelineManager:
         self.stats.end_time = time.time()
         self.pipeline_stats.end_time = self.stats.end_time
         self.pipeline_stats.execution_time = self.stats.duration_seconds
+
+        # Collect HTTP client statistics into pipeline statistics
+        if self._shared_client is not None:
+            client_stats = self._shared_client.statistics
+            self.pipeline_stats.total_requests = client_stats.get("request_count", 0)
+            self.pipeline_stats.errors = client_stats.get("error_count", 0)
+            self.pipeline_stats.retries = client_stats.get("retry_count", 0)
+            self.pipeline_stats.bytes_sent = client_stats.get("bytes_sent", 0)
+            self.pipeline_stats.bytes_received = client_stats.get("bytes_received", 0)
+            self.pipeline_stats.open_connections = client_stats.get("open_connections", 0)
+            self.pipeline_stats.peak_connections = client_stats.get("peak_connections", 0)
+            self.pipeline_stats.avg_response_time = client_stats.get("avg_response_time", 0)
+            self.pipeline_stats.redirects = client_stats.get("redirect_count", self.pipeline_stats.redirects)
+            self.pipeline_stats.requests_per_second = (
+                self.pipeline_stats.total_requests / max(self.pipeline_stats.execution_time, 0.001)
+            )
+
         self.pipeline_stats.update_resource_usage()
+
+        # Close the shared HTTP client
+        if self._shared_client is not None:
+            await self._shared_client.close()
+            self._shared_client = None
 
         log.info("=" * 60)
         log.info("Pipeline complete. Duration: %.2f seconds", self.stats.duration_seconds)
+        log.info("Total HTTP requests: %d", self.pipeline_stats.total_requests)
+        log.info("Errors: %d, Retries: %d", self.pipeline_stats.errors, self.pipeline_stats.retries)
         log.info("=" * 60)
 
         return self.pipeline_stats

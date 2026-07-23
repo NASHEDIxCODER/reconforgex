@@ -143,13 +143,7 @@ class HTTPFingerprinting(BaseModule):
 
     def __init__(self, config: Optional[ModuleConfiguration] = None):
         super().__init__(config)
-        http_config = HTTPClientConfig(
-            timeout=config.extra.get("timeout", 30) if config else 30,
-            max_retries=config.extra.get("max_retries", 2) if config else 2,
-            max_concurrency=config.extra.get("concurrency", 50) if config else 50,
-            follow_redirects=True,
-        )
-        self._client = AsyncHTTPClient(http_config)
+        self._client: Optional[AsyncHTTPClient] = None
 
     def metadata(self) -> ModuleMetadata:
         return ModuleMetadata(
@@ -245,7 +239,8 @@ class HTTPFingerprinting(BaseModule):
             urls = list(dict.fromkeys(urls))  # deduplicate preserve order
 
         try:
-            responses = await self._client.batch_get(urls)
+            client = self._get_client()
+            responses = await client.batch_get(urls)
 
             for response in responses:
                 if response.error and response.status_code == 0:
@@ -280,6 +275,19 @@ class HTTPFingerprinting(BaseModule):
             self.stats.status = ModuleStatus.COMPLETED
             self.stats.end_time = __import__("time").time()
             self.stats.items_processed = len(results)
-            await self._client.close()
 
         return results
+
+    def _get_client(self) -> AsyncHTTPClient:
+        """Get or create HTTP client. Uses shared client when available."""
+        if self._shared_client is not None:
+            return self._shared_client
+        if self._client is None:
+            http_config = HTTPClientConfig(
+                timeout=self.config.extra.get("timeout", 30),
+                max_retries=self.config.extra.get("max_retries", 2),
+                max_concurrency=self.config.extra.get("concurrency", 50),
+                follow_redirects=True,
+            )
+            self._client = AsyncHTTPClient(http_config)
+        return self._client

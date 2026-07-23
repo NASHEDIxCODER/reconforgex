@@ -56,13 +56,7 @@ class SitemapParser(BaseModule):
 
     def __init__(self, config: Optional[ModuleConfiguration] = None):
         super().__init__(config)
-        http_config = HTTPClientConfig(
-            timeout=config.extra.get("timeout", 15) if config else 15,
-            max_retries=config.extra.get("max_retries", 2) if config else 2,
-            max_concurrency=config.extra.get("concurrency", 10) if config else 10,
-            follow_redirects=True,
-        )
-        self._client = AsyncHTTPClient(http_config)
+        self._client: Optional[AsyncHTTPClient] = None
 
     def metadata(self) -> ModuleMetadata:
         return ModuleMetadata(
@@ -171,7 +165,8 @@ class SitemapParser(BaseModule):
             sitemap_urls = list(dict.fromkeys(sitemap_urls))
 
         try:
-            responses = await self._client.batch_get(sitemap_urls)
+            client = self._get_client()
+            responses = await client.batch_get(sitemap_urls)
 
             for response in responses:
                 if response.error and response.status_code == 0:
@@ -184,7 +179,7 @@ class SitemapParser(BaseModule):
 
                 # If sitemap index, fetch sub-sitemaps
                 if is_index and sub_sitemaps:
-                    sub_responses = await self._client.batch_get(sub_sitemaps)
+                    sub_responses = await client.batch_get(sub_sitemaps)
                     for sub_resp in sub_responses:
                         if sub_resp.status_code == 200:
                             sub_urls, _, _ = self._parse_sitemap(sub_resp.body)
@@ -211,6 +206,19 @@ class SitemapParser(BaseModule):
             self.stats.status = ModuleStatus.COMPLETED
             self.stats.end_time = __import__("time").time()
             self.stats.items_processed = len(results)
-            await self._client.close()
 
         return results
+
+    def _get_client(self) -> AsyncHTTPClient:
+        """Get or create HTTP client. Uses shared client when available."""
+        if self._shared_client is not None:
+            return self._shared_client
+        if self._client is None:
+            http_config = HTTPClientConfig(
+                timeout=self.config.extra.get("timeout", 15),
+                max_retries=self.config.extra.get("max_retries", 2),
+                max_concurrency=self.config.extra.get("concurrency", 10),
+                follow_redirects=True,
+            )
+            self._client = AsyncHTTPClient(http_config)
+        return self._client

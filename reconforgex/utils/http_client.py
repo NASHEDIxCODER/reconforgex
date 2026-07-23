@@ -138,7 +138,7 @@ class AsyncHTTPClient:
         self._cancelled = False
         self._rate_limiter: Optional[RateLimiter] = None
 
-        # Statistics (use __slots__-like approach for speed)
+        # Statistics
         self._request_count = 0
         self._error_count = 0
         self._retry_count = 0
@@ -148,6 +148,8 @@ class AsyncHTTPClient:
         self._peak_connections = 0
         self._bytes_sent = 0
         self._bytes_received = 0
+        self._redirect_count = 0
+        self._status_codes: Dict[int, int] = {}
 
         # Initialize rate limiter
         if self.config.enable_rate_limiting:
@@ -230,6 +232,16 @@ class AsyncHTTPClient:
         """Perform a GET request with retry, backoff, and rate limiting."""
         return await self._request("GET", url, headers=headers, timeout=timeout)
 
+    async def post(
+        self,
+        url: str,
+        headers: Optional[Dict[str, str]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> HTTPResponse:
+        """Perform a POST request."""
+        return await self._request("POST", url, headers=headers, data=data, timeout=timeout)
+
     async def head(
         self,
         url: str,
@@ -244,6 +256,7 @@ class AsyncHTTPClient:
         method: str,
         url: str,
         headers: Optional[Dict[str, str]] = None,
+        data: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
     ) -> HTTPResponse:
         """Core request method with retry, backoff, rate limiting, and cancellation."""
@@ -277,6 +290,7 @@ class AsyncHTTPClient:
                     method,
                     url,
                     headers=request_headers,
+                    data=data,
                     timeout=timeout or self.config.timeout,
                 )
 
@@ -285,6 +299,16 @@ class AsyncHTTPClient:
                 self._request_count += 1
                 self._total_elapsed += elapsed
                 self._timings.append(elapsed)
+
+                # Track status codes
+                sc = response.status_code
+                if not hasattr(self, '_status_codes'):
+                    self._status_codes = {}
+                self._status_codes[sc] = self._status_codes.get(sc, 0) + 1
+
+                # Track redirects
+                if 300 <= sc < 400:
+                    self._redirect_count += 1
 
                 # Record latency for adaptive rate limiting
                 if self._rate_limiter:
@@ -295,8 +319,8 @@ class AsyncHTTPClient:
                 resp_headers = dict(response.headers)
 
                 # TLS version detection
-                tls_version = None
                 http_version = response.http_version
+                tls_version = None
                 if http_version == "HTTP/2":
                     tls_version = "TLS 1.3"
                 elif hasattr(response, "extensions"):
@@ -312,6 +336,9 @@ class AsyncHTTPClient:
                 if headers:
                     self._bytes_sent += sum(len(k) + len(v) for k, v in headers.items())
 
+                # Calculate request size
+                req_size = sum(len(k) + len(v) for k, v in request_headers.items()) + len(url)
+
                 return HTTPResponse(
                     url=str(response.url),
                     status_code=response.status_code,
@@ -323,6 +350,7 @@ class AsyncHTTPClient:
                     content_type=resp_headers.get("content-type", ""),
                     server=resp_headers.get("server", ""),
                     http_version=http_version,
+                    request_size=req_size,
                     response_size=len(body.encode()),
                 )
 
@@ -383,10 +411,56 @@ class AsyncHTTPClient:
     ) -> List[HTTPResponse]:
         """Execute multiple GET requests concurrently.
 
-        Uses asyncio.gather for maximum throughput.
+        Uses asyncio.gather with return_exceptions=True so that
+        individual failures do NOT kill the entire batch.
+        Failed requests are returned as HTTPResponse objects with
+        error fields set, so callers can filter with:
+            [r for r in responses if r.status_code != 0]
         """
-        tasks = [self.get(url, headers=headers, timeout=timeout) for url in urls]
-        return await asyncio.gather(*tasks, return_exceptions=False)
+        if not urls:
+            return []
+
+        async def _safe_get(url: str) -> HTTPResponse:
+            try:
+                return await self.get(url, headers=headers, timeout=timeout)
+            except Exception as exc:
+                return HTTPResponse(
+                    url=url,
+                    status_code=0,
+                    headers={},
+                    body="",
+                    elapsed=0.0,
+                    error=f"batch_get error: {exc}",
+                )
+
+        tasks = [_safe_get(url) for url in urls]
+        results: List[Any] = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Convert any remaining exceptions to error responses
+        final: List[HTTPResponse] = []
+        for url, result in zip(urls, results):
+            if isinstance(result, HTTPResponse):
+                final.append(result)
+            elif isinstance(result, Exception):
+                final.append(HTTPResponse(
+                    url=url,
+                    status_code=0,
+                    headers={},
+                    body="",
+                    elapsed=0.0,
+                    error=f"batch_get exception: {result}",
+                ))
+            else:
+                final.append(HTTPResponse(
+                    url=url,
+                    status_code=0,
+                    headers={},
+                    body="",
+                    elapsed=0.0,
+                    error=f"batch_get unknown result type: {type(result)}",
+                ))
+
+        return final
 
     @property
     def statistics(self) -> Dict[str, Any]:
@@ -403,4 +477,6 @@ class AsyncHTTPClient:
             "peak_connections": self._peak_connections,
             "bytes_sent": self._bytes_sent,
             "bytes_received": self._bytes_received,
+            "redirect_count": self._redirect_count,
+            "status_codes": getattr(self, '_status_codes', {}),
         }
