@@ -1,146 +1,76 @@
-<div align="center">
+# ReconForgeX
 
-# 🔍 ReconForgeX
-
-**Production-Grade Asynchronous Python Reconnaissance Framework**
+**Async-first reconnaissance framework in pure Python. No external tool dependencies.**
 
 [![CI Pipeline](https://github.com/NASHEDIxCODER/reconforgex/actions/workflows/ci.yml/badge.svg)](https://github.com/NASHEDIxCODER/reconforgex/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Ruff](https://img.shields.io/badge/linter-ruff-brightgreen)](https://github.com/astral-sh/ruff)
-[![Mypy](https://img.shields.io/badge/types-mypy-blue)](https://github.com/python/mypy)
 
 ---
 
-[Features](#-features) •
-[Architecture](#-architecture) •
-[Pipeline](#-pipeline) •
-[Quick Start](#-quick-start) •
-[Modules](#-modules) •
-[Benchmarks](#-benchmarks) •
-[Roadmap](#-roadmap) •
-[Development](#-development)
+## What is ReconForgeX?
 
----
+ReconForgeX is a Python framework for HTTP-based security reconnaissance. It runs 13 analysis modules against a target domain to discover technologies, security issues, exposed files, JavaScript secrets, and more.
 
-</div>
+**Key characteristic**: Every module is implemented in pure Python. There are no wrappers around external tools like nmap, nuclei, subfinder, or httpx. The only runtime dependencies are `httpx` (HTTP client) and `pyyaml` (config parsing).
 
-## 🚀 Overview
+## Why does it exist?
 
-ReconForgeX is a **production-grade**, **async-first** reconnaissance framework built **entirely in Python** with **zero external tool dependencies**. Every module is implemented natively with first-class async support, retry logic, exponential backoff, cancellation, and comprehensive telemetry.
+Existing reconnaissance tools typically shell out to external binaries. This creates:
 
-**This is not an automation wrapper. This is a production framework built by an experienced backend engineer.**
+- **Dependency hell**: Each tool requires its own runtime, version, and configuration
+- **Inconsistent behavior**: Different environments produce different results
+- **CI/CD friction**: Installing 5+ external tools in a pipeline is error-prone
 
-### Why ReconForgeX?
+ReconForgeX solves this by implementing everything in Python. One `pip install` gives you a complete reconnaissance framework.
 
-- **🔬 Pure Python**: No subfinder, no assetfinder, no httpx, no nmap, no nuclei, no aquatone. Every module is implemented from scratch.
-- **⚡ Async Architecture**: Full `asyncio` + `httpx.AsyncClient` with semaphore-based concurrency control.
-- **🎯 Production-Grade**: Retry with exponential backoff, timeouts, cancellation, and comprehensive error handling.
-- **📊 Rich Telemetry**: Execution time, percentiles (P50, P95, P99), throughput, memory, CPU, and per-module statistics.
-- **🛡️ Security Focused**: CSP analysis, TLS inspection, security header scanning, JS secret detection, risk scoring.
-- **🔌 Extensible**: Plugin architecture with standardized module interface (`run()`, `metadata()`, `statistics()`, `health()`, `configuration()`).
-- **📈 Beautiful Reports**: HTML reports with Chart.js visualizations, summary cards, execution timelines, and risk gauges.
-- **⚙️ Configurable Worker Pool**: 10, 25, 50, 100, 250, 500, or 1000 concurrent workers.
+## Who is it for?
 
-## ✨ Features
+- **Security engineers** who need a reliable, reproducible reconnaissance tool
+- **Penetration testers** who want to automate initial reconnaissance
+- **DevSecOps teams** integrating security scanning into CI/CD pipelines
+- **Python developers** who want to understand or extend reconnaissance logic
 
-| Category | Modules |
-|----------|---------|
-| **HTTP Analysis** | Header Analyzer, Security Header Scanner, HTTP Fingerprinting, HTTP Response Analyzer |
-| **Security Scanning** | CSP Analyzer, TLS Inspector, Risk Scoring Engine |
-| **Content Discovery** | robots.txt Parser, sitemap.xml Parser, Interesting Files Finder |
-| **JavaScript Analysis** | JS Collector, JS Endpoint Extractor, JS Secret Detector |
-| **Performance** | Configurable Worker Pool (10–1000), Async HTTP Client, Retry with Exponential Backoff |
-| **Reporting** | HTML (with Chart.js), JSON, Markdown |
+## How does it work?
 
-## 🏗 Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         CLI Entry Point                      │
-│              reconforgex -d example.com --workers 100         │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────────┐
-│                     Pipeline Manager                         │
-│         Orchestrates 13 modules with dependency resolution    │
-│         Topological sort via Kahn's algorithm                 │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────────┐
-│                      Worker Pool                             │
-│        Configurable: 10 | 25 | 50 | 100 | 250 | 500 | 1000  │
-│        Semaphore-based concurrency · Retry · Backoff         │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────────┐
-│                      Module Layer                            │
-│                                                              │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐    │
-│  │ HTTP        │ │ Security    │ │ Content Discovery   │    │
-│  │ Fingerprint │ │ Header Scan │ │ (robots, sitemap,   │    │
-│  │ Header      │ │ TLS         │ │  interesting files) │    │
-│  │ Response    │ │ Inspector   │ └─────────────────────┘    │
-│  └─────────────┘ │ CSP Analysis │                           │
-│                   │ Risk Scoring│                           │
-│                   └─────────────┘                           │
-│  ┌─────────────────────────────────────────────────┐       │
-│  │ JavaScript Analysis                             │       │
-│  │ (Collector → Endpoint Extractor → Secret Detector) │    │
-│  └─────────────────────────────────────────────────┘       │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────────┐
-│                    Async HTTP Client                         │
-│   httpx.AsyncClient · Semaphore · Retry · Backoff · Timeout  │
-│   HTTP/2 support · Connection pooling · Cancellation         │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────────┐
-│                     Report Layer                             │
-│         HTML (Chart.js) · JSON · Markdown                    │
-│         Summary cards · Charts · Timeline · Risk gauge       │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    CLI[CLI] --> PM[Pipeline Manager]
+    PM --> Sched[Scheduler]
+    PM --> HTTP[Async HTTP Client]
+    Sched --> W1[Wave 1: 10 modules]
+    Sched --> W2[Wave 2: JS analysis]
+    Sched --> W3[Wave 3: Risk scoring]
+    Sched --> W4[Wave 4: Reports]
+    W1 --> M1[HTTP Fingerprinting]
+    W1 --> M2[Header Analyzer]
+    W1 --> M3[Security Headers]
+    W1 --> M4[TLS Inspector]
+    W1 --> M5[CSP Analyzer]
+    W1 --> M6[robots.txt]
+    W1 --> M7[sitemap.xml]
+    W1 --> M8[JS Collector]
+    W1 --> M9[Interesting Files]
+    W1 --> M10[Response Analyzer]
+    W2 --> M11[JS Endpoints]
+    W2 --> M12[JS Secrets]
+    W3 --> M13[Risk Scoring]
+    W4 --> R1[HTML Report]
+    W4 --> R2[JSON Report]
+    W4 --> R3[Markdown Report]
 ```
 
-## 📋 Pipeline
+1. **CLI** parses arguments and loads configuration
+2. **Pipeline Manager** creates a shared HTTP client and registers all modules
+3. **Scheduler** computes execution order using dependency resolution (Kahn's algorithm)
+4. **Modules** run in waves — independent modules run concurrently, dependent modules wait
+5. **Reports** are generated from accumulated results
 
-The pipeline executes stages in topological order based on dependencies. Stages with no dependencies run concurrently in Wave 1:
+## Architecture
 
-```
-Wave 1 (10 concurrent stages):
-┌──────────┬──────────┬──────────┬──────────┬──────────┐
-│ HTTP     │ Header   │ Security │ TLS      │ CSP      │
-│ Finger-  │ Analyzer │ Header   │ Inspector│ Analyzer │
-│ printing │          │ Scanner  │          │          │
-├──────────┼──────────┼──────────┼──────────┼──────────┤
-│ robots   │ sitemap  │ JS       │ Interest-│ HTTP     │
-│ .txt     │ .xml     │ Collector│ ing Files│ Response │
-│ Parser   │ Parser   │          │ Finder   │ Analyzer │
-└──────────┴──────────┴──────────┴──────────┴──────────┘
-
-Wave 2 (depends on JS Collector):
-┌──────────────────────┬──────────────────────┐
-│ JS Endpoint          │ JS Secret            │
-│ Extractor            │ Detector             │
-└──────────────────────┴──────────────────────┘
-
-Wave 3 (depends on analysis modules):
-┌──────────────────────────────────────────────┐
-│ Risk Scoring Engine                          │
-│ (Aggregates headers + TLS + CSP + secrets)   │
-└──────────────────────────────────────────────┘
-
-Wave 4 (depends on all modules):
-┌──────────────────────────────────────────────┐
-│ Report Generation (HTML + JSON + Markdown)   │
-└──────────────────────────────────────────────┘
-```
-
-## ⚡ Quick Start
-
-### Installation
+## Installation
 
 ```bash
 # Clone the repository
@@ -150,31 +80,27 @@ cd reconforgex
 # Install dependencies
 pip install -e .
 
-# Optional: monitoring capabilities
+# Optional: monitoring capabilities (memory/CPU tracking)
 pip install -e ".[monitoring]"
 
 # Optional: all extras (dev + monitoring)
 pip install -e ".[all]"
 ```
 
-### Basic Usage
+## Quick Start
 
 ```bash
-# Simple scan (all 13 modules, 50 workers)
+# Basic scan (all 13 modules, 50 workers)
 reconforgex -d example.com
 
 # Scan with custom worker count
 reconforgex -d example.com --workers 250
 
-# Full reconnaissance suite with verbose logging
-reconforgex -d example.com \
-  --workers 100 \
-  --verbose \
-  --output ./scan_results
+# Full reconnaissance with verbose logging
+reconforgex -d example.com --workers 100 --verbose --output ./scan_results
 
 # Run specific modules only
-reconforgex -d example.com \
-  --modules tls_inspector csp_analyzer risk_scoring
+reconforgex -d example.com --modules tls_inspector csp_analyzer risk_scoring
 
 # List all available modules
 reconforgex --list-modules
@@ -187,19 +113,13 @@ reconforgex configs/default.yaml -d example.com
 
 ```python
 import asyncio
-from reconforgex.modules import (
-    HTTPFingerprinting,
-    SecurityHeaderScanner,
-    TLSInspector,
-    RiskScoringEngine,
-)
+from reconforgex.modules import HTTPFingerprinting, SecurityHeaderScanner, TLSInspector
 
 async def scan_domain(domain: str):
     # HTTP Fingerprinting
     fingerprint = HTTPFingerprinting()
     fp_results = await fingerprint.run(domain)
     print(f"Technologies: {[r.technologies for r in fp_results]}")
-    print(f"Fingerprint stats: {fingerprint.statistics().to_dict()}")
 
     # Security Headers
     header_scanner = SecurityHeaderScanner()
@@ -210,77 +130,91 @@ async def scan_domain(domain: str):
     tls = TLSInspector()
     tls_results = await tls.run(domain)
     print(f"TLS version: {tls_results[0].tls_version}")
-    print(f"Certificate expiry: {tls_results[0].days_remaining} days")
-
-    # Risk Assessment
-    risk = RiskScoringEngine()
-    risk_results = await risk.run(
-        target=domain,
-        header_results=sh_results,
-        tls_results=tls_results,
-    )
-    print(f"Risk score: {risk_results[0].overall_score}/100")
 
 asyncio.run(scan_domain("example.com"))
 ```
 
-## 🧩 Modules
+## Configuration
 
-### [HTTP Fingerprinting](reconforgex/modules/http_fingerprint.py)
-Identifies web servers, frameworks, and technologies by analyzing HTTP response headers, cookies, and body patterns. Built-in fingerprint database covers 30+ technologies including nginx, Apache, Cloudflare, AWS, Google Cloud, Azure, and more.
+Configuration is loaded from YAML files with CLI overrides. CLI flags take precedence.
 
-### [Header Analyzer](reconforgex/modules/header_analyzer.py)
-Analyzes HTTP response headers for security misconfigurations, information disclosure, and compliance with OWASP best practices. Provides a security score (0-100) per target. Checks 11 security headers and 4 information disclosure headers.
+```yaml
+# configs/default.yaml
+worker_count: 50
+timeout: 30
+retry_count: 3
+output_directory: "output"
+logging_level: "INFO"
+modules:
+  - http_fingerprinting
+  - header_analyzer
+  - security_header_scanner
+  - tls_inspector
+  - csp_analyzer
+  - robots_parser
+  - sitemap_parser
+  - js_collector
+  - js_endpoint_extractor
+  - js_secret_detector
+  - interesting_files
+  - http_response_analyzer
+  - risk_scoring
+```
 
-### [Security Header Scanner](reconforgex/modules/security_header_scanner.py)
-Dedicated scanner for 12 OWASP-recommended security headers with detailed compliance checking. Provides per-header compliance status and an overall compliance score.
+## Modules
 
-### [TLS Inspector](reconforgex/modules/tls_inspector.py)
-Inspects TLS/SSL certificates, protocol versions, and security configurations. Detects expired certificates, self-signed certificates, and weak TLS versions. Extracts certificate details including issuer, subject, SANs, and validity period.
+ReconForgeX includes 13 modules across 4 categories:
 
-### [CSP Analyzer](reconforgex/modules/csp_analyzer.py)
-Analyzes Content-Security-Policy headers for weaknesses, missing directives, and bypass opportunities. Identifies 10+ CSP bypass vectors including CDN-based bypasses, unsafe-inline, and weak host patterns.
+| Category | Modules |
+|----------|---------|
+| **HTTP Analysis** | HTTP Fingerprinting, Header Analyzer, Security Header Scanner, HTTP Response Analyzer |
+| **Security Scanning** | CSP Analyzer, TLS Inspector, Risk Scoring Engine |
+| **Content Discovery** | robots.txt Parser, sitemap.xml Parser, Interesting Files Finder |
+| **JavaScript Analysis** | JS Collector, JS Endpoint Extractor, JS Secret Detector |
 
-### [robots.txt Parser](reconforgex/modules/robots_parser.py)
-Downloads and parses robots.txt to discover paths, sitemaps, and interesting restricted areas. Identifies 15+ interesting path patterns (admin, backup, config, .git, etc.).
 
-### [sitemap.xml Parser](reconforgex/modules/sitemap_parser.py)
-Downloads and parses XML sitemaps (including sitemap indices) to discover URLs within the target domain. Recursively fetches sub-sitemaps from sitemap indices.
+## Output
 
-### [JavaScript Collector](reconforgex/modules/js_collector.py)
-Discovers and collects JavaScript files from web pages for further analysis. Extracts both inline and external scripts, identifies third-party scripts.
+Results are saved to the output directory (default: `output/`):
 
-### [JS Endpoint Extractor](reconforgex/modules/js_endpoint_extractor.py)
-Extracts API endpoints, routes, and URLs from JavaScript source code using 12+ pattern categories including API routes, HTTP requests, framework routes, WebSocket URLs, and gRPC services.
+```
+output/
+├── reports/
+│   ├── report.html    # Interactive HTML with Chart.js visualizations
+│   ├── report.json    # Machine-readable JSON
+│   └── report.md      # Human-readable Markdown
+└── logs/
+    └── reconforgex.log
+```
 
-### [JS Secret Detector](reconforgex/modules/js_secret_detector.py)
-Detects 30+ types of secrets including API keys, AWS keys, Google API keys, GitHub tokens, JWT tokens, Slack tokens, database URLs, private keys, and more. Severity-graded findings.
+### HTML Report Features
 
-### [Interesting Files Finder](reconforgex/modules/interesting_files.py)
-Discovers 60+ interesting files and paths organized into 7 categories: configuration files, source control, backups, logs, admin panels, API endpoints, and sensitive files.
+- Summary cards with key metrics (domains, live hosts, technologies, findings)
+- Response time distribution chart (bar chart)
+- Status code distribution (doughnut chart)
+- Execution timeline (horizontal bar chart)
+- Technology distribution (doughnut chart)
+- TLS version distribution (bar chart)
+- Security header compliance matrix
+- Risk score gauge
+- Pipeline performance radar chart
+- Dark theme UI
 
-### [HTTP Response Analyzer](reconforgex/modules/http_response_analyzer.py)
-Analyzes HTTP responses for status codes, redirects, content types, and patterns (forms, login pages, file uploads). Provides status code distribution and response time analysis.
+## Reports
 
-### [Risk Scoring Engine](reconforgex/modules/risk_scoring.py)
-Aggregates findings from all modules into a weighted risk score (0-100) with detailed breakdown by category. Weights: Security Headers (30%), TLS (25%), CSP (25%), Secrets (20%).
+Three report formats are generated:
 
-## 📊 Benchmarks
+- **HTML**: Standalone file with embedded CSS/JS and Chart.js visualizations
+- **JSON**: Structured data for CI/CD integration and programmatic consumption
+- **Markdown**: Quick human-readable summary
 
-Performance benchmarks across different domain counts and worker pool configurations:
+## Benchmarks
 
-| Domains | Workers | Runtime (s) | Throughput (req/s) | Avg (ms) | P95 (ms) | P99 (ms) | Memory (MB) | CPU (%) | Errors |
-|---------|---------|-------------|-------------------|----------|----------|----------|-------------|---------|--------|
-| 10      | 50      | 2.34        | 4.3               | 234      | 456      | 512      | 45.2        | 12.3    | 0      |
-| 10      | 100     | 1.89        | 5.3               | 189      | 389      | 445      | 52.1        | 15.6    | 0      |
-| 10      | 250     | 1.67        | 6.0               | 167      | 345      | 401      | 68.3        | 18.9    | 0      |
-| 100     | 50      | 8.45        | 11.8              | 85       | 234      | 312      | 78.5        | 22.1    | 0      |
-| 100     | 100     | 5.23        | 19.1              | 52       | 156      | 234      | 92.1        | 28.4    | 0      |
-| 100     | 250     | 4.12        | 24.3              | 41       | 123      | 189      | 145.6       | 35.2    | 0      |
-| 1000    | 100     | 42.1        | 23.8              | 42       | 134      | 201      | 156.2       | 38.7    | 1      |
-| 1000    | 250     | 28.5        | 35.1              | 28       | 89       | 145      | 234.5       | 45.3    | 2      |
-| 1000    | 500     | 22.3        | 44.8              | 22       | 67       | 112      | 345.1       | 52.8    | 3      |
-| 1000    | 1000    | 20.1        | 49.8              | 20       | 56       | 98       | 456.8       | 58.1    | 5      |
+| Domains | Workers | Runtime (s) | Throughput (req/s) | Memory (MB) |
+|---------|---------|-------------|-------------------|-------------|
+| 10 | 50 | 2.34 | 4.3 | 45.2 |
+| 100 | 100 | 5.23 | 19.1 | 92.1 |
+| 1000 | 250 | 28.5 | 35.1 | 234.5 |
 
 Run your own benchmarks:
 
@@ -288,26 +222,11 @@ Run your own benchmarks:
 python -m benchmarks.bench_basic
 ```
 
-### Analysis
-
-**Throughput Scaling**: The framework demonstrates linear throughput scaling with worker count up to 250 workers. Beyond 250 workers, diminishing returns are observed due to network and OS-level concurrency limits.
-
-**Latency**: P95 and P99 latencies remain stable across worker counts, indicating consistent performance under load. The async architecture ensures efficient connection pooling and minimal context switching overhead.
-
-**Resource Usage**: Memory usage scales linearly with worker count. CPU usage remains moderate due to the I/O-bound nature of HTTP reconnaissance.
-
-**Recommended Configuration**:
-- **Small targets (< 100 domains)**: 50 workers
-- **Medium targets (100-500 domains)**: 100-250 workers
-- **Large targets (500+ domains)**: 250-500 workers
-- **Maximum throughput**: 500 workers
-
-## 🛠 Development
+## Development
 
 ### Setup
 
 ```bash
-# Clone and install with dev dependencies
 git clone https://github.com/NASHEDIxCODER/reconforgex.git
 cd reconforgex
 pip install -e ".[dev]"
@@ -333,58 +252,55 @@ pytest tests/ --cov=reconforgex -v
 
 ```
 reconforgex/
-├── __init__.py              # Package entry point
 ├── cli.py                   # CLI argument parsing and dispatch
 ├── config.py                # YAML-based configuration
 ├── constants.py             # Centralized constants
 ├── exceptions.py            # Custom exception hierarchy
 ├── logger.py                # Structured logging
-├── modules/
-│   ├── __init__.py          # Module exports
-│   ├── base.py              # Abstract base class (run, metadata, statistics, health, configuration)
-│   ├── http_fingerprint.py  # HTTP fingerprinting (30+ technologies)
-│   ├── header_analyzer.py   # HTTP header security analysis
-│   ├── security_header_scanner.py  # OWASP security header compliance
-│   ├── tls_inspector.py     # TLS/SSL certificate inspection
-│   ├── csp_analyzer.py      # Content Security Policy analysis
-│   ├── robots_parser.py     # robots.txt parsing
-│   ├── sitemap_parser.py    # sitemap.xml parsing
-│   ├── js_collector.py      # JavaScript file collection
-│   ├── js_endpoint_extractor.py  # API endpoint extraction from JS
-│   ├── js_secret_detector.py     # Secret detection in JS
-│   ├── interesting_files.py      # Interesting files discovery
-│   ├── http_response_analyzer.py # HTTP response analysis
-│   └── risk_scoring.py      # Risk scoring engine
-├── pipeline/
-│   ├── __init__.py
+├── modules/                 # 13 reconnaissance modules
+│   ├── base.py              # Abstract base class
+│   ├── http_fingerprint.py
+│   ├── header_analyzer.py
+│   ├── security_header_scanner.py
+│   ├── tls_inspector.py
+│   ├── csp_analyzer.py
+│   ├── robots_parser.py
+│   ├── sitemap_parser.py
+│   ├── js_collector.py
+│   ├── js_endpoint_extractor.py
+│   ├── js_secret_detector.py
+│   ├── interesting_files.py
+│   ├── http_response_analyzer.py
+│   └── risk_scoring.py
+├── pipeline/                # Pipeline orchestration
 │   ├── manager.py           # Pipeline orchestration
 │   ├── scheduler.py         # DAG-based stage scheduler
-│   ├── statistics.py        # Execution statistics (P50, P95, P99, etc.)
-│   └── worker_pool.py       # Configurable async worker pool
-├── report/
-│   ├── __init__.py
-│   ├── html_report.py       # HTML report with Chart.js
+│   ├── statistics.py        # Execution statistics
+│   ├── worker_pool.py       # Async worker pool
+│   └── progress.py          # Terminal progress monitor
+├── report/                  # Report generation
+│   ├── html_report.py       # HTML with Chart.js
 │   ├── json_report.py       # JSON report
 │   └── markdown_report.py   # Markdown report
-└── utils/
-    ├── __init__.py
-    ├── files.py             # File I/O utilities
-    ├── http_client.py       # Async HTTP client with retry/backoff
-    ├── process.py           # Process execution utilities
+└── utils/                   # Shared utilities
+    ├── http_client.py       # Async HTTP client
+    ├── rate_limiter.py      # Token bucket rate limiter
+    ├── files.py             # File I/O
+    ├── process.py           # Process execution
     └── validators.py        # Input validation
 ```
 
 ### CI/CD
 
-The project uses GitHub Actions for:
-- ✅ **Lint**: Black formatting, Ruff linting, Mypy type checking
-- ✅ **Test**: Pytest with coverage on Python 3.11 and 3.12
-- ✅ **Benchmark**: Performance regression testing
-- ✅ **Release**: Automated PyPI publishing
+GitHub Actions runs:
+- **Lint**: Black formatting, Ruff linting, Mypy type checking
+- **Test**: Pytest with coverage on Python 3.11 and 3.12
+- **Benchmark**: Performance regression testing
+- **Release**: Automated PyPI publishing
 
-## 🔌 Plugin System
+## Plugin Architecture
 
-ReconForgeX supports a plugin system where custom modules can be dropped into `~/.reconforgex/plugins/`:
+Custom modules can be added by extending `BaseModule`:
 
 ```python
 from reconforgex.modules.base import BaseModule
@@ -395,22 +311,34 @@ class MyCustomModule(BaseModule):
         return results
 ```
 
-Every module must expose:
-- `run()` — Execute the module's core logic
-- `metadata()` — Return module metadata (name, description, version, author)
-- `statistics()` — Return execution statistics
-- `health()` — Return health check status
-- `configuration()` — Return current configuration
+Place custom modules in `~/.reconforgex/plugins/` for auto-discovery.
 
-## 🗺 Roadmap
+## Contribution Guide
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Make your changes
+4. Run tests (`pytest tests/ -v`)
+5. Run linters (`black . && ruff check . && mypy reconforgex/`)
+6. Submit a pull request
+
+### What to contribute
+
+- **Bug fixes**: Issues with modules, pipeline, or reports
+- **New modules**: Additional reconnaissance techniques
+- **Fingerprint signatures**: Expand the technology fingerprint database
+- **Documentation**: Improvements to docs, examples, or docstrings
+- **Performance**: Optimizations to the HTTP client or worker pool
+
+## Roadmap
 
 ### Phase 2 (Completed)
 - [x] 13 pure-Python reconnaissance modules
 - [x] Async execution with `asyncio` + `httpx.AsyncClient`
-- [x] Configurable worker pool (10, 25, 50, 100, 250, 500, 1000)
+- [x] Configurable worker pool (10–1000)
 - [x] Comprehensive statistics (P50, P95, P99, throughput, memory, CPU)
-- [x] Beautiful HTML reports with Chart.js
-- [x] GitHub Actions CI/CD (lint, test, benchmark, release)
+- [x] HTML reports with Chart.js
+- [x] GitHub Actions CI/CD
 - [x] Zero external tool dependencies
 
 ### Phase 3 (Planned)
@@ -424,12 +352,6 @@ Every module must expose:
 - [ ] Docker support
 - [ ] CLI completions (bash/zsh)
 
-## 📄 License
+## License
 
-**MIT License** — see [LICENSE](LICENSE) for details.
-
----
-
-<div align="center">
-Built with ❤️ by <a href="https://github.com/NASHEDIxCODER">nashedi_x_coder</a>
-</div>
+MIT License — see [LICENSE](LICENSE) for details.
