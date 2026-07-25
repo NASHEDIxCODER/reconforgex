@@ -27,7 +27,6 @@ Example ``config.yaml``::
       - risk_scoring
 """
 
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -40,19 +39,19 @@ from reconforgex.constants import (
     DEFAULT_RETRY_COUNT,
     DEFAULT_TIMEOUT,
     DEFAULT_WORKER_COUNT,
-    MODULE_HTTP_FINGERPRINT,
-    MODULE_HEADER_ANALYZER,
-    MODULE_SECURITY_HEADERS,
-    MODULE_TLS_INSPECTOR,
     MODULE_CSP_ANALYZER,
-    MODULE_ROBOTS_PARSER,
-    MODULE_SITEMAP_PARSER,
+    MODULE_HEADER_ANALYZER,
+    MODULE_HTTP_FINGERPRINT,
+    MODULE_INTERESTING_FILES,
     MODULE_JS_COLLECTOR,
     MODULE_JS_ENDPOINTS,
     MODULE_JS_SECRETS,
-    MODULE_INTERESTING_FILES,
     MODULE_RESPONSE_ANALYZER,
     MODULE_RISK_SCORING,
+    MODULE_ROBOTS_PARSER,
+    MODULE_SECURITY_HEADERS,
+    MODULE_SITEMAP_PARSER,
+    MODULE_TLS_INSPECTOR,
 )
 from reconforgex.exceptions import ConfigurationError
 

@@ -5,10 +5,11 @@ Discovers interesting files and directories on web servers by probing
 common paths. Built entirely in Python.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any, List, Optional, Tuple
 from urllib.parse import urljoin
 
+from reconforgex.logger import get_logger
 from reconforgex.modules.base import (
     BaseModule,
     ModuleConfiguration,
@@ -16,8 +17,7 @@ from reconforgex.modules.base import (
     ModuleMetadata,
     ModuleStatus,
 )
-from reconforgex.utils.http_client import AsyncHTTPClient, HTTPClientConfig, HTTPResponse
-from reconforgex.logger import get_logger
+from reconforgex.utils.http_client import AsyncHTTPClient, HTTPClientConfig
 
 log = get_logger()
 

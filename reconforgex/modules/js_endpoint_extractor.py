@@ -6,18 +6,16 @@ using pattern matching. Built entirely in Python.
 """
 
 import re
-from typing import Any, Dict, List, Optional, Set
-from dataclasses import dataclass, field
-from urllib.parse import urljoin, urlparse
+from dataclasses import dataclass
+from typing import Any, List, Optional, Set
 
+from reconforgex.logger import get_logger
 from reconforgex.modules.base import (
     BaseModule,
-    ModuleConfiguration,
     ModuleHealth,
     ModuleMetadata,
     ModuleStatus,
 )
-from reconforgex.logger import get_logger
 
 log = get_logger()
 

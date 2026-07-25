@@ -22,8 +22,8 @@ Usage::
 import asyncio
 import time
 from collections import defaultdict
-from typing import Dict, Optional
 from dataclasses import dataclass, field
+from typing import Dict
 
 
 @dataclass

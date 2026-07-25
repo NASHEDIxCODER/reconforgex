@@ -18,8 +18,8 @@ Usage::
 
 import asyncio
 import time
-from typing import Any, Callable, Coroutine, List, Optional, TypeVar
 from dataclasses import dataclass, field
+from typing import Any, Callable, Coroutine, List, Optional, TypeVar
 
 from reconforgex.logger import get_logger
 

@@ -5,10 +5,10 @@ Analyzes HTTP responses for status codes, redirects, content types,
 and response patterns. Built entirely in Python.
 """
 
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
-from urllib.parse import urlparse
 
+from reconforgex.logger import get_logger
 from reconforgex.modules.base import (
     BaseModule,
     ModuleConfiguration,
@@ -17,7 +17,6 @@ from reconforgex.modules.base import (
     ModuleStatus,
 )
 from reconforgex.utils.http_client import AsyncHTTPClient, HTTPClientConfig, HTTPResponse
-from reconforgex.logger import get_logger
 
 log = get_logger()
 

@@ -1,12 +1,13 @@
 """Tests for reconforgex.utils.validators."""
 
 import pytest
+
 from reconforgex.exceptions import ValidationError
 from reconforgex.utils.validators import (
     validate_domain,
-    validate_url,
     validate_hostname,
     validate_subdomain_list,
+    validate_url,
 )
 
 

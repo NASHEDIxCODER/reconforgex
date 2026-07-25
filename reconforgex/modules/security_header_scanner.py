@@ -5,9 +5,10 @@ Dedicated scanner for security-related HTTP headers with detailed
 compliance checking against OWASP recommendations.
 """
 
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
 
+from reconforgex.logger import get_logger
 from reconforgex.modules.base import (
     BaseModule,
     ModuleConfiguration,
@@ -16,7 +17,6 @@ from reconforgex.modules.base import (
     ModuleStatus,
 )
 from reconforgex.utils.http_client import AsyncHTTPClient, HTTPClientConfig
-from reconforgex.logger import get_logger
 
 log = get_logger()
 

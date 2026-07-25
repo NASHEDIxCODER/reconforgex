@@ -7,19 +7,18 @@ Built entirely in Python - no external tool dependencies.
 """
 
 import re
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
 
+from reconforgex.logger import get_logger
 from reconforgex.modules.base import (
     BaseModule,
     ModuleConfiguration,
     ModuleHealth,
     ModuleMetadata,
-    ModuleStatistics,
     ModuleStatus,
 )
-from reconforgex.utils.http_client import AsyncHTTPClient, HTTPClientConfig, HTTPResponse
-from reconforgex.logger import get_logger
+from reconforgex.utils.http_client import AsyncHTTPClient, HTTPClientConfig
 
 log = get_logger()
 

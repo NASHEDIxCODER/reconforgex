@@ -13,31 +13,30 @@ import asyncio
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional
 
 from reconforgex.config import ReconForgeXConfig
 from reconforgex.constants import (
-    STAGE_HTTP_FINGERPRINT,
-    STAGE_HEADER_ANALYZER,
-    STAGE_SECURITY_HEADERS,
-    STAGE_TLS_INSPECTOR,
+    MODULE_CLASS_MAP,
     STAGE_CSP_ANALYZER,
-    STAGE_ROBOTS_PARSER,
-    STAGE_SITEMAP_PARSER,
+    STAGE_HEADER_ANALYZER,
+    STAGE_HTTP_FINGERPRINT,
+    STAGE_INTERESTING_FILES,
     STAGE_JS_COLLECTOR,
     STAGE_JS_ENDPOINTS,
     STAGE_JS_SECRETS,
-    STAGE_INTERESTING_FILES,
+    STAGE_REPORT,
     STAGE_RESPONSE_ANALYZER,
     STAGE_RISK_SCORING,
-    STAGE_REPORT,
-    MODULE_CLASS_MAP,
+    STAGE_ROBOTS_PARSER,
+    STAGE_SECURITY_HEADERS,
+    STAGE_SITEMAP_PARSER,
+    STAGE_TLS_INSPECTOR,
 )
 from reconforgex.logger import get_logger
 from reconforgex.modules.base import BaseModule, ModuleConfiguration
 from reconforgex.pipeline.scheduler import PipelineScheduler, Stage, StageResult, StageStatus
 from reconforgex.pipeline.statistics import PipelineStatistics
-from reconforgex.pipeline.worker_pool import WorkerPool, WorkerPoolConfig
 
 log = get_logger()
 
@@ -625,9 +624,9 @@ class PipelineManager:
     async def _run_report_builder(self) -> StageResult:
         start = time.monotonic()
         try:
+            from reconforgex.report.html_report import build_html_report
             from reconforgex.report.json_report import build_json_report
             from reconforgex.report.markdown_report import build_markdown_report
-            from reconforgex.report.html_report import build_html_report
 
             report_dir = self._output_dir / "reports"
             report_dir.mkdir(parents=True, exist_ok=True)
@@ -654,27 +653,27 @@ class PipelineManager:
 
             # Count total findings from all modules
             total_findings = 0
-            
+
             # Header analysis findings
             for item in self._data_store.get("header_analysis", []):
                 if isinstance(item, dict):
                     total_findings += len(item.get("findings", []))
-            
+
             # JS secrets findings
             for item in self._data_store.get("js_secrets", []):
                 if isinstance(item, dict):
                     total_findings += len(item.get("findings", []))
-            
+
             # CSP analysis findings
             for item in self._data_store.get("csp_analysis", []):
                 if isinstance(item, dict):
                     total_findings += len(item.get("findings", []))
-            
+
             # Security header checks
             for item in self._data_store.get("security_headers", []):
                 if isinstance(item, dict):
                     total_findings += len(item.get("checks", []))
-            
+
             # Also count from raw objects
             for item in self._data_store.get("security_headers_raw", []):
                 if hasattr(item, 'checks'):
@@ -710,7 +709,7 @@ class PipelineManager:
                 self.pipeline_stats.errors = err_count
                 self.pipeline_stats.retries = retry_count
                 self.pipeline_stats.redirects = client_stats.get("redirect_count", 0)
-                
+
                 status_codes = client_stats.get("status_codes", {})
                 self.pipeline_stats.client_errors = sum(v for k, v in status_codes.items() if 400 <= k < 500)
                 self.pipeline_stats.server_errors = sum(v for k, v in status_codes.items() if 500 <= k < 600)
@@ -759,7 +758,7 @@ class PipelineManager:
 
         # Initialize the shared HTTP client
         shared = self._get_shared_client()
-        log.info("Shared HTTP client initialized (connection pool: %d max)", 
+        log.info("Shared HTTP client initialized (connection pool: %d max)",
                  shared.config.max_connections)
 
         waves = self._scheduler.get_execution_order()

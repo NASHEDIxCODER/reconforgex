@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from reconforgex.constants import DEFAULT_LOGGING_LEVEL, DEFAULT_LOG_DIR
+from reconforgex.constants import DEFAULT_LOGGING_LEVEL
 
 # Module-level singleton
 _logger: Optional["ReconForgeXLogger"] = None

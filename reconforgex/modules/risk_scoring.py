@@ -6,17 +6,16 @@ Provides an overall risk assessment with detailed breakdown. Built entirely
 in Python.
 """
 
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any, Dict, List
 
+from reconforgex.logger import get_logger
 from reconforgex.modules.base import (
     BaseModule,
-    ModuleConfiguration,
     ModuleHealth,
     ModuleMetadata,
     ModuleStatus,
 )
-from reconforgex.logger import get_logger
 
 log = get_logger()
 

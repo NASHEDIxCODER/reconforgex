@@ -1,6 +1,7 @@
 """Tests for reconforgex.cli argument parsing."""
 
 import pytest
+
 from reconforgex.cli import build_parser
 
 

@@ -32,3 +32,12 @@ Thumbs.db
 htmlcov/
 .coverage
 coverage.xml
+
+# Benchmark outputs
+benchmarks/benchmark.json
+benchmarks/benchmark.md
+benchmarks/benchmark.csv
+benchmarks/benchmark_results.json
+
+# Cleanup plan (temporary)
+cleanup_plan.md

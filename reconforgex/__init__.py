@@ -14,7 +14,7 @@ Typical usage::
 
 from reconforgex.cli import main
 from reconforgex.config import ReconForgeXConfig
-from reconforgex.constants import VERSION, AUTHOR
+from reconforgex.constants import AUTHOR, VERSION
 from reconforgex.logger import get_logger
 from reconforgex.pipeline.manager import PipelineManager
 from reconforgex.pipeline.statistics import PipelineStatistics

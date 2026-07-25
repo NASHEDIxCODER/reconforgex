@@ -13,7 +13,7 @@ PACKAGE_NAME: Final[str] = "reconforgex"
 VERSION: Final[str] = "2.0.0"
 AUTHOR: Final[str] = "nashedi_x_coder"
 DESCRIPTION: Final[str] = (
-    "ReconForgeX — Production-Grade Asynchronous Python Reconnaissance Framework"
+    "ReconForgeX — Asynchronous Python reconnaissance framework"
 )
 
 # ── Default Paths ─────────────────────────────────────────────────────────────
@@ -21,7 +21,7 @@ DEFAULT_OUTPUT_DIR: Final[Path] = Path("output")
 DEFAULT_LOG_DIR: Final[Path] = Path("output/logs")
 DEFAULT_REPORT_DIR: Final[Path] = Path("output/reports")
 DEFAULT_SCREENSHOT_DIR: Final[Path] = Path("output/screenshots")
-DEFAULT_CONFIG_PATH: Final[Path] = Path("configs/default.yaml")
+DEFAULT_CONFIG_PATH: Final[Path] = Path("reconforgex/config.yaml")
 
 # ── Output File Names ─────────────────────────────────────────────────────────
 SUBDOMAINS_FILE: Final[str] = "subdomains.txt"

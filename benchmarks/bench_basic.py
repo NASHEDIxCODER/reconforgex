@@ -18,13 +18,12 @@ import json
 import os
 import sys
 import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
 from statistics import median
+from typing import List
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from reconforgex.pipeline.worker_pool import WorkerPool, WorkerPoolConfig, VALID_WORKER_COUNTS
 from reconforgex.utils.http_client import AsyncHTTPClient, HTTPClientConfig
 
 

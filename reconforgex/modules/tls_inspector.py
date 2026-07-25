@@ -5,13 +5,14 @@ Inspects TLS/SSL certificate details, protocol versions, and cipher
 suites by establishing connections to targets. Built entirely in Python.
 """
 
-import ssl
 import socket
+import ssl
 import time
-from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Any, List, Optional, Tuple
 
+from reconforgex.logger import get_logger
 from reconforgex.modules.base import (
     BaseModule,
     ModuleConfiguration,
@@ -19,7 +20,6 @@ from reconforgex.modules.base import (
     ModuleMetadata,
     ModuleStatus,
 )
-from reconforgex.logger import get_logger
 
 log = get_logger()
 

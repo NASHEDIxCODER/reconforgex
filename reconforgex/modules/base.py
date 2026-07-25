@@ -9,11 +9,11 @@ Every module must expose:
     - configuration() : Return current configuration
 """
 
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
 from enum import Enum, auto
-import time
+from typing import Any, Dict, List, Optional
 
 
 class ModuleStatus(Enum):

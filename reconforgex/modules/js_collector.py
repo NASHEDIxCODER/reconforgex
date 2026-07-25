@@ -6,10 +6,11 @@ HTML for script tags. Built entirely in Python.
 """
 
 import re
-from typing import Any, Dict, List, Optional, Set
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any, List, Optional
 from urllib.parse import urljoin, urlparse
 
+from reconforgex.logger import get_logger
 from reconforgex.modules.base import (
     BaseModule,
     ModuleConfiguration,
@@ -18,7 +19,6 @@ from reconforgex.modules.base import (
     ModuleStatus,
 )
 from reconforgex.utils.http_client import AsyncHTTPClient, HTTPClientConfig
-from reconforgex.logger import get_logger
 
 log = get_logger()
 

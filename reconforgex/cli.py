@@ -9,15 +9,15 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
-from reconforgex.config import ReconForgeXConfig, load_config, ALL_MODULES
+from reconforgex.config import ALL_MODULES, ReconForgeXConfig, load_config
 from reconforgex.constants import (
     AUTHOR,
-    DESCRIPTION,
-    VERSION,
     DEFAULT_CONFIG_PATH,
+    DESCRIPTION,
     VALID_WORKER_COUNTS,
+    VERSION,
 )
 from reconforgex.exceptions import ConfigurationError, ValidationError
 from reconforgex.logger import get_logger, set_log_level
@@ -180,7 +180,7 @@ def _create_output_dirs(output_dir: Path) -> None:
         d.mkdir(parents=True, exist_ok=True)
 
 
-async def async_main(argv: Optional[List[str]] = None) -> int:
+async def async_main(argv: Optional[list[str]] = None) -> int:
     """Async entry point for the CLI.
 
     Parameters

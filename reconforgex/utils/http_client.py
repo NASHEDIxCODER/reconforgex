@@ -23,10 +23,10 @@ Usage::
 """
 
 import asyncio
-import time
 import random
-from typing import Any, Dict, List, Optional, Tuple
+import time
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 import httpx

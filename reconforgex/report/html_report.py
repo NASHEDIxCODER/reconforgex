@@ -6,9 +6,9 @@ for interactive charts, summary cards, and execution timeline.
 """
 
 import json
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List
 
 from reconforgex.logger import get_logger
 from reconforgex.pipeline.statistics import PipelineStatistics

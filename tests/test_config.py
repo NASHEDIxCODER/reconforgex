@@ -3,8 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from reconforgex.config import ReconForgeXConfig, load_config, save_default_config
 from reconforgex.constants import (
     DEFAULT_LOGGING_LEVEL,
